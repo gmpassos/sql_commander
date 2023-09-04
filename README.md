@@ -116,6 +116,8 @@ void main() async {
 
   // Register the `PostgreSQL` connection implementation:
   DBConnectionPostgres.register();
+  // For MySQL:
+  //DBConnectionMySQL.register();
 
   // Execute the SQL chain:
   var ok = await dbCommand.execute(

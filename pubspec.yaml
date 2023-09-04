@@ -9,11 +9,10 @@ environment:
 dependencies:
   collection: ^1.18.0
   intl: ^0.18.1
+  swiss_knife: ^3.1.5
   logging: ^1.2.0
   mysql1: ^0.20.0
-  path: ^1.8.3
   postgres: ^2.6.2
-  swiss_knife: ^3.1.5
 
 dev_dependencies:
   lints: ^2.1.1

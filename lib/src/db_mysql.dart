@@ -7,16 +7,16 @@ import 'sql.dart';
 
 final _log = logging.Logger('DBConnectionMysql');
 
-class DBConnectionMysql extends DBConnection<MySqlConnection> {
+class DBConnectionMySQL extends DBConnection<MySqlConnection> {
   static void register() => DBConnectionProvider.registerProvider(
-      'mysql', DBConnectionMysql.provider);
+      'mysql', DBConnectionMySQL.provider);
 
-  static DBConnectionPoolProvider<DBConnectionMysql> provider(
+  static DBConnectionPoolProvider<DBConnectionMySQL> provider(
           DBConnectionCredential credential,
           {int? maxConnections,
           Duration? retryInterval,
           int? maxRetries}) =>
-      DBConnectionPoolProvider<DBConnectionMysql>(
+      DBConnectionPoolProvider<DBConnectionMySQL>(
         credential,
         open,
         maxConnections: maxConnections ?? 1,
@@ -24,7 +24,7 @@ class DBConnectionMysql extends DBConnection<MySqlConnection> {
         maxRetries: maxRetries ?? 10,
       );
 
-  static Future<DBConnectionMysql?> open(DBConnectionCredential credential,
+  static Future<DBConnectionMySQL?> open(DBConnectionCredential credential,
           {Duration? retryInterval, int? maxRetries}) =>
       DBConnection.openConnection(
         credential,
@@ -39,11 +39,11 @@ class DBConnectionMysql extends DBConnection<MySqlConnection> {
               db: credential.db);
 
           var conn = await MySqlConnection.connect(settings);
-          return DBConnectionMysql(conn);
+          return DBConnectionMySQL(conn);
         },
       );
 
-  DBConnectionMysql(super.nativeConnection);
+  DBConnectionMySQL(super.nativeConnection);
 
   @override
   Future<void> close() => nativeConnection.close();

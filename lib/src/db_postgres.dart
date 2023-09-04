@@ -7,7 +7,7 @@ import 'package:swiss_knife/swiss_knife.dart';
 import 'db.dart';
 import 'sql.dart';
 
-final _log = logging.Logger('DBConnectionMysql');
+final _log = logging.Logger('DBConnectionPostgres');
 
 class DBConnectionPostgres extends DBConnection<PostgreSQLConnection> {
   static void register() => DBConnectionProvider.registerProvider(
