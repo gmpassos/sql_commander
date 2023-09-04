@@ -127,6 +127,20 @@ class DBConnectionPostgres extends DBConnection<PostgreSQLConnection> {
 
           return (results: results, lastID: null);
         }
+      case SQLType.DELETE:
+        {
+          var result = await nativeConnection.query(s.sql,
+              substitutionValues: s.valuesNamed);
+
+          return result.affectedRowCount > 0
+              ? (
+                  results: [
+                    {'ok': true}
+                  ],
+                  lastID: null
+                )
+              : null;
+        }
       default:
         throw StateError("Can't execute SQL: $sql");
     }

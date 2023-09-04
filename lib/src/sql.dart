@@ -277,6 +277,21 @@ class SQL {
 
           sql = 'SELECT $sqlColumns FROM $q$table$q$sqlWhere$sqlOrder$sqlLimit';
         }
+      case SQLType.DELETE:
+        {
+          final where = this
+              .where
+              ?.build(q: q, variables: variables, executedSqls: executedSqls);
+
+          var sqlWhere =
+              where != null && where.isNotEmpty ? ' WHERE $where' : '';
+
+          var limit = this.limit;
+
+          var sqlLimit = limit != null && limit > 0 ? ' LIMIT $limit' : '';
+
+          sql = 'DELETE FROM $q$table$q$sqlWhere$sqlLimit';
+        }
       default:
         throw StateError("Can't build SQL: $this");
     }

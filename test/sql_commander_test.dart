@@ -77,6 +77,14 @@ void main() {
           parameters: {'last_date': DateTime.utc(2020, 10, 11, 1, 2, 3)},
           where: SQLConditionValue('id', '=', '#order_ref:13#'),
         ),
+        SQL(
+          '15',
+          'tab_use',
+          SQLType.DELETE,
+          parameters: {'last_date': DateTime.utc(2020, 10, 11, 1, 2, 3)},
+          where: SQLConditionValue('num', '=', '%TAB_NUMBER%'),
+          variables: {'TAB_NUMBER': null},
+        ),
       ];
 
       var json = {
@@ -95,7 +103,7 @@ void main() {
       expect(dbCommand.software, equals('any_db'));
       expect(dbCommand.host, equals('localhost'));
       expect(dbCommand.port, equals(dbPort));
-      expect(dbCommand.sqls.length, equals(6));
+      expect(dbCommand.sqls.length, equals(7));
 
       expect(dbCommand.sqls[0],
           isA<SQL>().having((e) => e.type, 'type', equals(SQLType.SELECT)));
@@ -107,6 +115,8 @@ void main() {
           isA<SQL>().having((e) => e.type.name, 'type', equals('INSERT')));
       expect(dbCommand.sqls[5],
           isA<SQL>().having((e) => e.type.name, 'type', equals('UPDATE')));
+      expect(dbCommand.sqls[6],
+          isA<SQL>().having((e) => e.type.name, 'type', equals('DELETE')));
 
       var myDBConnection = _MyDBConnection();
 
@@ -126,7 +136,7 @@ void main() {
       expect(loggedErrors, isEmpty);
 
       expect(myDBConnection.insertCount, equals(101));
-      expect(myDBConnection.executedSQLs.length, equals(6));
+      expect(myDBConnection.executedSQLs.length, equals(7));
 
       {
         var sql = myDBConnection.executedSQLs[0];
@@ -201,6 +211,13 @@ void main() {
         expect(sql.$2, isNull);
         expect(sql.$3, isNull);
       }
+
+      {
+        var sql = myDBConnection.executedSQLs[6];
+        expect(sql.$1, equals('DELETE FROM `tab_use` WHERE `num` = 301'));
+        expect(sql.$2, isNull);
+        expect(sql.$3, isNull);
+      }
     });
   });
 }
@@ -257,6 +274,12 @@ class _MyDBConnection extends DBConnection<int> {
             results = [
               {'id': 301}
             ];
+          }
+        }
+      case SQLType.DELETE:
+        {
+          if (sql.table == 'tab_use') {
+            results = [];
           }
         }
       default:

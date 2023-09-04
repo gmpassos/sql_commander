@@ -93,7 +93,7 @@ class DBConnectionMySQL extends DBConnection<MySqlConnection> {
           var result = await nativeConnection.query(s.sql, s.valuesOrdered);
           var affectedRows = result.affectedRows ?? 0;
 
-          var results = _resolveMyAQLResults(result);
+          var results = _resolveMySQLResults(result);
 
           if (affectedRows > 0) {
             var lastId = sql.resolveLastInsertID(result.insertId,
@@ -119,17 +119,29 @@ class DBConnectionMySQL extends DBConnection<MySqlConnection> {
       case SQLType.SELECT:
         {
           var result = await nativeConnection.query(s.sql, s.valuesOrdered);
-
-          var results = _resolveMyAQLResults(result);
-
+          var results = _resolveMySQLResults(result);
           return (results: results, lastID: null);
+        }
+      case SQLType.DELETE:
+        {
+          var result = await nativeConnection.query(s.sql, s.valuesOrdered);
+          var affectedRows = result.affectedRows ?? 0;
+
+          return affectedRows > 0
+              ? (
+                  results: [
+                    {'ok': true}
+                  ],
+                  lastID: null
+                )
+              : null;
         }
       default:
         throw StateError("Can't execute SQL: $sql");
     }
   }
 
-  List<Map<String, dynamic>> _resolveMyAQLResults(Results result) {
+  List<Map<String, dynamic>> _resolveMySQLResults(Results result) {
     var fields = result.fields.map((f) => f.name).toList();
 
     var results = result
