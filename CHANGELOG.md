@@ -1,6 +1,7 @@
 ## 1.0.2
 
 - Improve documentation.
+- Fix library name for `sql_commander_mysql.dart` and `sql_commander_postgres.dart`.
 
 ## 1.0.1
 

@@ -185,11 +185,13 @@ class DBConnectionPoolProvider<C extends DBConnection>
     extends DBConnectionProvider<C> {
   /// The credential to create the connections.
   final DBConnectionCredential credential;
+
   /// The maximum number of connections waiting in the pool.
   final int maxConnections;
 
   /// The retry interval when trying to connect.
   final Duration retryInterval;
+
   /// The maximum number of retries before create a connection fails.
   final int maxRetries;
 
