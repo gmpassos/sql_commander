@@ -28,7 +28,7 @@ If any operation requires modification or updating for system compatibility, the
 remote `sql_commander` can be adjusted without the necessity of updating the software deployed on the remote devices.
 This simplifies maintenance and minimizes issues in remote locations.
 
-Empowered by Dart's multi-platform support, this package simplifies the creation of robust a solution with ease.
+Empowered by Dart's multi-platform support, this package simplifies the creation of robust solutions with ease.
 
 ## Usage
 
