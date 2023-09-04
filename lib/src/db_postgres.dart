@@ -9,10 +9,13 @@ import 'sql.dart';
 
 final _log = logging.Logger('DBConnectionPostgres');
 
+/// [DBConnection] for PostgreSQL.
 class DBConnectionPostgres extends DBConnection<PostgreSQLConnection> {
+  /// Registers a [DBConnectionProvider] for PostgreSQL.
   static void register() => DBConnectionProvider.registerProvider(
       'postgres', DBConnectionPostgres.provider);
 
+  /// Returns a [DBConnectionPoolProvider] for PostgreSQL.
   static DBConnectionPoolProvider<DBConnectionPostgres> provider(
           DBConnectionCredential credential,
           {int? maxConnections,
@@ -26,6 +29,7 @@ class DBConnectionPostgres extends DBConnection<PostgreSQLConnection> {
         maxRetries: maxRetries ?? 10,
       );
 
+  /// Opens a [DBConnectionPostgres].
   static Future<DBConnectionPostgres?> open(DBConnectionCredential credential,
           {Duration? retryInterval, int? maxRetries}) =>
       DBConnection.openConnection(

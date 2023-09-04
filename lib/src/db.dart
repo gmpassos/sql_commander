@@ -66,16 +66,21 @@ abstract class DBConnection<T> {
     return null;
   }
 
+  /// The native connection.
   final T nativeConnection;
 
   DBConnection(this.nativeConnection);
 
+  /// Starts a transaction.
   Future<bool> startTransaction();
 
+  /// Rollback the transaction.
   Future<bool> rollbackTransaction();
 
+  /// Commit the transaction.
   Future<bool> commitTransaction();
 
+  /// Executes a [sql].
   Future<({List<Map<String, dynamic>>? results, Object? lastID})?> executeSQL(
       SQL sql,
       {List<SQL>? executedSqls});
@@ -90,16 +95,19 @@ typedef DBConnectionProviderInstantiator
         int? maxRetries,
         int? maxConnections});
 
+/// Base class for [DBConnection] providers.
 abstract class DBConnectionProvider<C extends DBConnection> {
   static final Map<String, DBConnectionProviderInstantiator>
       _registeredProviders = {};
 
+  /// Registers a [DBConnectionProvider].
   static void registerProvider(
       String type, DBConnectionProviderInstantiator providerInstantiator) {
     type = type.toLowerCase().trim();
     _registeredProviders[type] = providerInstantiator;
   }
 
+  /// Gets a [DBConnectionProvider] for [type] with [credential].
   static FutureOr<DBConnectionProvider?> getProvider(
       String type, DBConnectionCredential credential,
       {Duration retryInterval = const Duration(seconds: 1),
@@ -118,18 +126,31 @@ abstract class DBConnectionProvider<C extends DBConnection> {
     return provider;
   }
 
+  /// Returns a [DBConnection] to execute commands.
   FutureOr<C> getConnection();
 
+  /// Releases a [DBConnection] to be reused.
   FutureOr<bool> releaseConnection(C connection);
 
+  /// Closes the provider and it's connections.
   FutureOr<int> close();
 }
 
+/// A [DBConnection] credential.
 class DBConnectionCredential {
+  /// DB host/IP.
   final String host;
+
+  /// DB port.
   final int port;
+
+  /// DB username.
   final String user;
+
+  /// DB password.
   final String pass;
+
+  /// DB name/scheme.
   final String db;
 
   const DBConnectionCredential(
@@ -159,14 +180,20 @@ typedef DBConnectionInstantiator<C extends DBConnection>
     = FutureOr<C?> Function(DBConnectionCredential credential,
         {Duration? retryInterval, int? maxRetries});
 
+/// A pool of [DBConnection]s.
 class DBConnectionPoolProvider<C extends DBConnection>
     extends DBConnectionProvider<C> {
+  /// The credential to create the connections.
   final DBConnectionCredential credential;
+  /// The maximum number of connections waiting in the pool.
   final int maxConnections;
 
+  /// The retry interval when trying to connect.
   final Duration retryInterval;
+  /// The maximum number of retries before create a connection fails.
   final int maxRetries;
 
+  /// The [Function] that creates new connections for the pool.
   final DBConnectionInstantiator<C> connectionInstantiator;
 
   DBConnectionPoolProvider(
@@ -219,6 +246,7 @@ class DBConnectionPoolProvider<C extends DBConnection>
   }
 }
 
+/// A single connection provider.
 class DBSingleConnectionProvider<C extends DBConnection>
     extends DBConnectionProvider<C> {
   final C connection;

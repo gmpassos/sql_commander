@@ -8,19 +8,26 @@ typedef CommandLogInfo = void Function(String message);
 typedef CommandLogError = void Function(String message,
     [Object? error, StackTrace? stackTrace]);
 
+/// A generic command.
 abstract class Command<P> {
+  /// The type of the command.
   String get commandType;
 
+  /// The execution group of the command.
   String get executionGroup;
 
+  /// Prepared the command to be executed.
   Future<P?> prepare();
 
+  /// Executes the command and returns `true` if successful.
   Future<bool> execute(
       {P? prepared, CommandLogInfo? logInfo, CommandLogError? logError});
 
+  /// Disposes the command resources.
   Future<void> dispose(P? prepared, {int executedCommands = 1});
 }
 
+/// A DB command.
 class DBCommand extends Command<DB> {
   final String host;
   final int port;
@@ -36,11 +43,13 @@ class DBCommand extends Command<DB> {
   @override
   String get commandType => 'DB';
 
+  /// Returns a [List] of [SQL]s already executed.
   List<SQL> get executedSqls => sqls.where((e) => e.executed).toList();
 
   DBCommand(this.host, this.port, this.user, this.pass, this.db, this.software,
       this.sqls);
 
+  /// Creates a [DBCommand] from a JSON [Map].
   factory DBCommand.fromJson(Map<String, dynamic> json) => DBCommand(
         (json["host"] ?? json["ip"]) as String,
         parseInt(json["port"])!,
@@ -55,6 +64,7 @@ class DBCommand extends Command<DB> {
             .toList(),
       );
 
+  /// Converts this [DBCommand] to JSON.
   Map<String, dynamic> toJson() => {
         "host": host,
         "port": port,
@@ -65,6 +75,7 @@ class DBCommand extends Command<DB> {
         "sqls": sqls.map((e) => e.toJson()).toList(),
       };
 
+  /// Returns the [DBConnectionCredential].
   DBConnectionCredential get credential =>
       DBConnectionCredential(host, port, user, pass, db);
 
