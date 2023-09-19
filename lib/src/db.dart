@@ -69,7 +69,9 @@ abstract class DBConnection<T> {
   /// The native connection.
   final T nativeConnection;
 
-  DBConnection(this.nativeConnection);
+  final SQLDialect dialect;
+
+  DBConnection(this.nativeConnection, this.dialect);
 
   /// Starts a transaction.
   Future<bool> startTransaction();

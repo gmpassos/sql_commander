@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:collection/collection.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:mysql1/mysql1.dart';
@@ -6,6 +8,16 @@ import 'db.dart';
 import 'sql.dart';
 
 final _log = logging.Logger('DBConnectionMysql');
+
+class MySQLDialect extends SQLDialect {
+  MySQLDialect() : super('mysql', q: '`');
+
+  @override
+  String toBytesString(Uint8List bytes) {
+    var hex = SQLDialect.toHex(bytes);
+    return "X'$hex'";
+  }
+}
 
 /// [DBConnection] for MySQL.
 class DBConnectionMySQL extends DBConnection<MySqlConnection> {
@@ -47,7 +59,8 @@ class DBConnectionMySQL extends DBConnection<MySqlConnection> {
         },
       );
 
-  DBConnectionMySQL(super.nativeConnection);
+  DBConnectionMySQL(MySqlConnection nativeConnection)
+      : super(nativeConnection, MySQLDialect());
 
   @override
   Future<void> close() => nativeConnection.close();
@@ -89,7 +102,7 @@ class DBConnectionMySQL extends DBConnection<MySqlConnection> {
   Future<({Object? lastID, List<Map<String, dynamic>>? results})?> executeSQL(
       SQL sql,
       {List<SQL>? executedSqls}) async {
-    var s = sql.build(q: '`', executedSqls: executedSqls);
+    var s = sql.build(dialect: dialect, executedSqls: executedSqls);
 
     switch (sql.type) {
       case SQLType.INSERT:

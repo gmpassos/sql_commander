@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:collection/collection.dart';
 import 'package:intl/intl.dart';
 import 'package:swiss_knife/swiss_knife.dart';
+import 'dart:convert' as dart_convert;
 
 import 'db.dart';
 
@@ -33,6 +36,22 @@ SQLType? parseSQLType(Object? o) {
     default:
       return null;
   }
+}
+
+/// The SQL dialect.
+abstract class SQLDialect {
+  final String name;
+
+  final String q;
+
+  SQLDialect(this.name, {required this.q});
+
+  static String toHex(List<int> data) {
+    var hex = data.map((e) => e.toRadixString(16).padLeft(2, '0')).join();
+    return hex;
+  }
+
+  String toBytesString(Uint8List bytes);
 }
 
 /// SQL declaration with agnostic dialect.
@@ -86,14 +105,13 @@ class SQL {
       json["sqlID"],
       json["table"],
       parseSQLType(json["type"])!,
-      parameters: (json["parameters"] as Map).map((k, v) => MapEntry('$k', v)),
+      parameters: _fromJsonMap<String, dynamic>(json["parameters"]),
       where: SQLCondition.fromJson(json["where"]),
-      returnColumns: (json["returnColumns"] as Map)
-          .map((k, v) => MapEntry('$k', v?.toString())),
+      returnColumns: _fromJsonMap<String, String?>(json["returnColumns"]),
       returnLastID: parseBool(json["returnLastID"], false)!,
       orderBy: json['orderBy'],
       limit: json['limit'],
-      variables: (json["variables"] as Map).map((k, v) => MapEntry('$k', v)),
+      variables: _fromJsonMap<String, dynamic>(json["variables"]),
     );
   }
 
@@ -101,14 +119,14 @@ class SQL {
     return {
       "sqlID": sqlID,
       "table": table,
-      "type": type,
+      "type": type.name,
       "where": where?.toJson(),
-      "returnColumns": deepCopyMap(returnColumns),
+      "returnColumns": _toJson(returnColumns),
       "returnLastID": returnLastID,
       "orderBy": orderBy,
       "limit": limit,
-      "parameters": deepCopyMap(parameters),
-      "variables": deepCopyMap(variables),
+      "parameters": _toJson(parameters),
+      "variables": _toJson(variables),
     };
   }
 
@@ -198,14 +216,19 @@ class SQL {
 
   static final sqlDateTimeFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
 
-  String resolveValueAsSQL(Object? value) {
+  String resolveValueAsSQL(Object? value, {required SQLDialect dialect}) {
     if (value == null) return 'NULL';
+
+    if (value is Uint8List) {
+      var hex = SQLDialect.toHex(value);
+      return "'\\x$hex'";
+    }
 
     var valueSQL = switch (value) {
       num() => '$value',
       String() => "'$value'",
       DateTime() => "'${sqlDateTimeFormat.format(value.toUtc())}'",
-      List() => value.first,
+      List() => value.first.toString(),
       _ => value.toString(),
     };
 
@@ -213,8 +236,10 @@ class SQL {
   }
 
   ({String sql, List? valuesOrdered, Map<String, dynamic>? valuesNamed}) build(
-      {required String q, List<SQL>? executedSqls}) {
+      {required SQLDialect dialect, List<SQL>? executedSqls}) {
     executedSqls ??= [];
+
+    final q = dialect.q;
 
     String sql;
     List? valuesOrdered;
@@ -231,7 +256,9 @@ class SQL {
           }
 
           var columns = parameters.keys.map((p) => '$q$p$q').join(' , ');
-          var values = parameters.values.map(resolveValueAsSQL).join(' , ');
+          var values = parameters.values
+              .map((e) => resolveValueAsSQL(e, dialect: dialect))
+              .join(' , ');
 
           sql = 'INSERT INTO $q$table$q ($columns) VALUES ($values)';
         }
@@ -242,24 +269,27 @@ class SQL {
                 "Can't build UPDATE SQL with empty parameters: $this");
           }
 
-          final where = this
-              .where
-              ?.build(q: q, variables: variables, executedSqls: executedSqls);
+          final where = this.where?.build(
+              dialect: dialect,
+              variables: variables,
+              executedSqls: executedSqls);
           if (where == null || where.isEmpty) {
             throw StateError("Can't build UPDATE SQL with empty WHERE: $this");
           }
 
           var set = parameters.entries
-              .map((e) => '$q${e.key}$q = ${resolveValueAsSQL(e.value)}')
+              .map((e) =>
+                  '$q${e.key}$q = ${resolveValueAsSQL(e.value, dialect: dialect)}')
               .join(' , ');
 
           sql = 'UPDATE $q$table$q SET $set WHERE $where';
         }
       case SQLType.SELECT:
         {
-          final where = this
-              .where
-              ?.build(q: q, variables: variables, executedSqls: executedSqls);
+          final where = this.where?.build(
+              dialect: dialect,
+              variables: variables,
+              executedSqls: executedSqls);
 
           var sqlColumns = '*';
 
@@ -299,9 +329,10 @@ class SQL {
         }
       case SQLType.DELETE:
         {
-          final where = this
-              .where
-              ?.build(q: q, variables: variables, executedSqls: executedSqls);
+          final where = this.where?.build(
+              dialect: dialect,
+              variables: variables,
+              executedSqls: executedSqls);
 
           var sqlWhere =
               where != null && where.isNotEmpty ? ' WHERE $where' : '';
@@ -396,7 +427,7 @@ abstract class SQLCondition {
   dynamic toJson();
 
   String build(
-      {required String q,
+      {required SQLDialect dialect,
       Map<String, dynamic>? variables,
       List<SQL>? executedSqls});
 }
@@ -428,12 +459,12 @@ class SQLConditionGroup extends SQLCondition {
 
   @override
   String build(
-      {required String q,
+      {required SQLDialect dialect,
       Map<String, dynamic>? variables,
       List<SQL>? executedSqls}) {
     if (conditions.length == 1) {
       return conditions.first.build(
-        q: q,
+        dialect: dialect,
         variables: variables,
         executedSqls: executedSqls,
       );
@@ -442,7 +473,7 @@ class SQLConditionGroup extends SQLCondition {
     var op = or ? ' OR ' : ' AND ';
     var conditionLine = conditions
         .map((e) => e.build(
-              q: q,
+              dialect: dialect,
               variables: variables,
               executedSqls: executedSqls,
             ))
@@ -470,14 +501,16 @@ class SQLConditionValue extends SQLCondition {
       );
 
   @override
-  List toJson() => [field, op, value];
+  List toJson() => [field, op, _toJson(value)];
 
   @override
   String build(
-      {required String q,
+      {required SQLDialect dialect,
       Map<String, dynamic>? variables,
       List<SQL>? executedSqls}) {
     Object? value = this.value;
+
+    final q = dialect.q;
 
     if (value != null && SQL.isVariableValue(value)) {
       value = SQL.resolveVariableValue(value, variables, executedSqls);
@@ -505,4 +538,102 @@ class SQLConditionValue extends SQLCondition {
   String toString() {
     return 'SQLConditionValue{$field $op $value}';
   }
+}
+
+dynamic _toJson(Object? o) {
+  if (o == null) return null;
+
+  if (o is String || o is num || o is bool) {
+    return o;
+  }
+
+  if (o is DateTime) {
+    var s = SQL.sqlDateTimeFormat.format(o.toUtc());
+    return "data:object;<DateTime>,$s";
+  }
+
+  if (o is Uint8List) {
+    var s = dart_convert.base64.encode(o);
+    return "data:application/octet-stream;base64,$s";
+  }
+
+  if (o is Map) {
+    return o.map((k, v) => MapEntry('$k', _toJson(v)));
+  }
+
+  if (o is List) {
+    return o.map(_toJson).toList();
+  }
+
+  return o;
+}
+
+dynamic _fromJson(Object? o) {
+  if (o == null) return null;
+
+  if (o is num || o is bool) {
+    return o;
+  }
+
+  if (o is Map) {
+    return o.map((k, v) => MapEntry('$k', _fromJson(v)));
+  }
+
+  if (o is List) {
+    return o.map(_fromJson).toList();
+  }
+
+  if (o is String) {
+    if (o.startsWith("data:")) {
+      if (o.startsWith("data:object;<DateTime>,")) {
+        var data = o.substring(23);
+        return SQL.sqlDateTimeFormat.parse(data.trim(), true);
+      }
+
+      var idx = o.indexOf(';base64,');
+
+      if (idx >= 5) {
+        var base64Data = o.substring(idx + 8);
+        var bytes = dart_convert.base64.decode(base64Data);
+        return bytes;
+      }
+    }
+
+    return o;
+  }
+}
+
+dynamic _fromJsonMap<K, V>(Map m) {
+  var keyMapper = _typeMapper<K>();
+  var valueMapper = _typeMapper<V>();
+
+  return m.map((k, v) {
+    var key = keyMapper(k) as K;
+    var value = valueMapper(v) as V;
+    return MapEntry<K, V>(key, value);
+  });
+}
+
+T? Function(Object? o) _typeMapper<T>() {
+  if (T == String) {
+    return (o) => o?.toString() as T?;
+  }
+
+  if (T == int) {
+    return (o) => parseInt(o) as T?;
+  }
+
+  if (T == double) {
+    return (o) => parseDouble(o) as T?;
+  }
+
+  if (T == num) {
+    return (o) => parseNum(o) as T?;
+  }
+
+  if (T == DateTime) {
+    return (o) => parseDateTime(o) as T?;
+  }
+
+  return (o) => _fromJson(o) as T?;
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:logging/logging.dart' as logging;
 import 'package:postgres/postgres.dart';
@@ -8,6 +9,16 @@ import 'db.dart';
 import 'sql.dart';
 
 final _log = logging.Logger('DBConnectionPostgres');
+
+class PostgreSQLDialect extends SQLDialect {
+  PostgreSQLDialect() : super('postgres', q: '"');
+
+  @override
+  String toBytesString(Uint8List bytes) {
+    var hex = SQLDialect.toHex(bytes);
+    return "'\\x$hex'";
+  }
+}
 
 /// [DBConnection] for PostgreSQL.
 class DBConnectionPostgres extends DBConnection<PostgreSQLConnection> {
@@ -45,7 +56,8 @@ class DBConnectionPostgres extends DBConnection<PostgreSQLConnection> {
         },
       );
 
-  DBConnectionPostgres(super.nativeConnection);
+  DBConnectionPostgres(PostgreSQLConnection nativeConnection)
+      : super(nativeConnection, PostgreSQLDialect());
 
   @override
   Future<void> close() async {
@@ -89,7 +101,7 @@ class DBConnectionPostgres extends DBConnection<PostgreSQLConnection> {
   Future<({Object? lastID, List<Map<String, dynamic>>? results})?> executeSQL(
       SQL sql,
       {List<SQL>? executedSqls}) async {
-    var s = sql.build(q: '"', executedSqls: executedSqls);
+    var s = sql.build(dialect: dialect, executedSqls: executedSqls);
 
     switch (sql.type) {
       case SQLType.INSERT:

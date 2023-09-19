@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:sql_commander/sql_commander.dart';
 import 'package:test/test.dart';
 
@@ -74,7 +76,10 @@ void main() {
           '14',
           'order_ref',
           SQLType.UPDATE,
-          parameters: {'last_date': DateTime.utc(2020, 10, 11, 1, 2, 3)},
+          parameters: {
+            'last_date': DateTime.utc(2020, 10, 11, 1, 2, 3),
+            'qr': Uint8List.fromList([1, 2, 3, 4])
+          },
           where: SQLConditionValue('id', '=', '#order_ref:13#'),
         ),
         SQL(
@@ -117,6 +122,13 @@ void main() {
           isA<SQL>().having((e) => e.type.name, 'type', equals('UPDATE')));
       expect(dbCommand.sqls[6],
           isA<SQL>().having((e) => e.type.name, 'type', equals('DELETE')));
+
+      expect(
+          dbCommand.sqls[5].parameters,
+          equals({
+            'last_date': DateTime.utc(2020, 10, 11, 1, 2, 3),
+            'qr': Uint8List.fromList([1, 2, 3, 4])
+          }));
 
       var myDBConnection = _MyDBConnection();
 
@@ -207,7 +219,7 @@ void main() {
         expect(
             sql.$1,
             equals(
-                'UPDATE `order_ref` SET `last_date` = \'2020-10-11 01:02:03\' WHERE `id` = 111'));
+                'UPDATE `order_ref` SET `last_date` = \'2020-10-11 01:02:03\' , `qr` = \'\\x01020304\' WHERE `id` = 111'));
         expect(sql.$2, isNull);
         expect(sql.$3, isNull);
       }
@@ -222,10 +234,20 @@ void main() {
   });
 }
 
+class _MyDialect extends SQLDialect {
+  _MyDialect() : super('generic', q: '`');
+
+  @override
+  String toBytesString(Uint8List bytes) {
+    var hex = SQLDialect.toHex(bytes);
+    return "'\\x$hex'";
+  }
+}
+
 class _MyDBConnection extends DBConnection<int> {
   static int _connectionIdCount = 0;
 
-  _MyDBConnection() : super(++_connectionIdCount);
+  _MyDBConnection() : super(++_connectionIdCount, _MyDialect());
 
   final List<(String, List?, Map?)> executedSQLs = [];
 
@@ -235,7 +257,7 @@ class _MyDBConnection extends DBConnection<int> {
   Future<({List<Map<String, dynamic>>? results, Object? lastID})?> executeSQL(
       SQL sql,
       {List<SQL>? executedSqls}) async {
-    var s = sql.build(q: '`', executedSqls: executedSqls);
+    var s = sql.build(dialect: dialect, executedSqls: executedSqls);
 
     List<Map<String, dynamic>>? results;
     Object? lastID;

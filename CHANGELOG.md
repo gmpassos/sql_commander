@@ -1,3 +1,10 @@
+## 1.0.4
+
+- New `SQLDialect`:
+  - Support for bytes string.
+- `SQL`:
+  - `toJson/fromJson`: support for `DateTime` and `UInt8List` object encoding and decoding. 
+
 ## 1.0.3
 
 - Added `parseSQLType`.
