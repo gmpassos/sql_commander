@@ -1,9 +1,10 @@
+import 'dart:convert' as dart_convert;
 import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:swiss_knife/swiss_knife.dart';
-import 'dart:convert' as dart_convert;
 
 import 'db.dart';
 
@@ -216,6 +217,37 @@ class SQL {
 
   static final sqlDateTimeFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
 
+  static DateTime parseDateTime(String s, {bool utc = true}) {
+    try {
+      return SQL.sqlDateTimeFormat.parse(s.trim(), utc);
+    } catch (_) {
+      _initializeDateFormatting();
+      return SQL.sqlDateTimeFormat.parse(s.trim(), utc);
+    }
+  }
+
+  static String formatDateTime(DateTime d, {bool utc = true}) {
+    if (utc) {
+      d = d.toUtc();
+    }
+
+    try {
+      return SQL.sqlDateTimeFormat.format(d);
+    } catch (_) {
+      _initializeDateFormatting();
+      return SQL.sqlDateTimeFormat.format(d);
+    }
+  }
+
+  static bool _initializeDateFormattingCall = false;
+
+  static void _initializeDateFormatting() {
+    if (_initializeDateFormattingCall) return;
+    _initializeDateFormattingCall = true;
+
+    initializeDateFormatting('en');
+  }
+
   String resolveValueAsSQL(Object? value, {required SQLDialect dialect}) {
     if (value == null) return 'NULL';
 
@@ -227,7 +259,7 @@ class SQL {
     var valueSQL = switch (value) {
       num() => '$value',
       String() => "'$value'",
-      DateTime() => "'${sqlDateTimeFormat.format(value.toUtc())}'",
+      DateTime() => "'${formatDateTime(value)}'",
       List() => value.first.toString(),
       _ => value.toString(),
     };
@@ -548,7 +580,7 @@ dynamic _toJson(Object? o) {
   }
 
   if (o is DateTime) {
-    var s = SQL.sqlDateTimeFormat.format(o.toUtc());
+    var s = SQL.formatDateTime(o);
     return "data:object;<DateTime>,$s";
   }
 
@@ -587,7 +619,7 @@ dynamic _fromJson(Object? o) {
     if (o.startsWith("data:")) {
       if (o.startsWith("data:object;<DateTime>,")) {
         var data = o.substring(23);
-        return SQL.sqlDateTimeFormat.parse(data.trim(), true);
+        return SQL.parseDateTime(data);
       }
 
       var idx = o.indexOf(';base64,');

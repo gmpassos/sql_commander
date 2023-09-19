@@ -1,3 +1,9 @@
+## 1.0.5
+
+- `SQL`:
+  - Added `parseDateTime` and `formatDateTime`.
+  - Automatically calls `initializeDateFormatting` if needed.
+
 ## 1.0.4
 
 - New `SQLDialect`:
