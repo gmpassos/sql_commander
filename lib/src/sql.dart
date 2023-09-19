@@ -15,6 +15,26 @@ enum SQLType {
   DELETE,
 }
 
+SQLType? parseSQLType(Object? o) {
+  if (o == null) return null;
+  if (o is SQLType) return o;
+
+  var s = o.toString().trim().toUpperCase();
+
+  switch (s) {
+    case 'INSERT':
+      return SQLType.INSERT;
+    case 'UPDATE':
+      return SQLType.UPDATE;
+    case 'SELECT':
+      return SQLType.SELECT;
+    case 'DELETE':
+      return SQLType.DELETE;
+    default:
+      return null;
+  }
+}
+
 /// SQL declaration with agnostic dialect.
 class SQL {
   /// The SQL ID for chain references.
@@ -65,7 +85,7 @@ class SQL {
     return SQL(
       json["sqlID"],
       json["table"],
-      json["type"],
+      parseSQLType(json["type"])!,
       parameters: (json["parameters"] as Map).map((k, v) => MapEntry('$k', v)),
       where: SQLCondition.fromJson(json["where"]),
       returnColumns: (json["returnColumns"] as Map)

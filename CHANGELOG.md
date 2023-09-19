@@ -1,3 +1,8 @@
+## 1.0.3
+
+- Added `parseSQLType`.
+- `SQL.fromJson`: fix enum resolution.
+
 ## 1.0.2
 
 - Improve documentation.
