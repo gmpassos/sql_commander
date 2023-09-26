@@ -7,6 +7,7 @@
 - New `DBCommandSet`.
 - `SQL`:
   - Added field `executedSQL`, with the actual executed SQL `String`.
+- New `Procedure`: allows execution of dynamic Dart code loaded by `ApolloVM`.
 
 - apollovm: ^0.0.38
 
