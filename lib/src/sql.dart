@@ -1,12 +1,11 @@
-import 'dart:convert' as dart_convert;
 import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
-import 'package:intl/date_symbol_data_local.dart';
-import 'package:intl/intl.dart';
 import 'package:swiss_knife/swiss_knife.dart';
 
+import 'command.dart';
 import 'db.dart';
+import 'json_helper.dart' as json_helper;
 
 enum SQLType {
   // ignore: constant_identifier_names
@@ -56,7 +55,7 @@ abstract class SQLDialect {
 }
 
 /// SQL declaration with agnostic dialect.
-class SQL {
+class SQL implements WithVariables {
   /// The SQL ID for chain references.
   /// - To reference to this SQL result use `#$table:$sqlID#`.
   /// - Example:
@@ -83,6 +82,7 @@ class SQL {
   Object? lastID;
 
   bool executed = false;
+  String? executedSQL;
 
   SQL(
     this.sqlID,
@@ -106,13 +106,14 @@ class SQL {
       json["sqlID"],
       json["table"],
       parseSQLType(json["type"])!,
-      parameters: _fromJsonMap<String, dynamic>(json["parameters"]),
+      parameters: json_helper.fromJsonMap<String, dynamic>(json["parameters"]),
       where: SQLCondition.fromJson(json["where"]),
-      returnColumns: _fromJsonMap<String, String?>(json["returnColumns"]),
+      returnColumns:
+          json_helper.fromJsonMap<String, String?>(json["returnColumns"]),
       returnLastID: parseBool(json["returnLastID"], false)!,
       orderBy: json['orderBy'],
       limit: json['limit'],
-      variables: _fromJsonMap<String, dynamic>(json["variables"]),
+      variables: json_helper.fromJsonMap<String, dynamic>(json["variables"]),
     );
   }
 
@@ -122,46 +123,35 @@ class SQL {
       "table": table,
       "type": type.name,
       "where": where?.toJson(),
-      "returnColumns": _toJson(returnColumns),
+      "returnColumns": json_helper.toJson(returnColumns),
       "returnLastID": returnLastID,
       "orderBy": orderBy,
       "limit": limit,
-      "parameters": _toJson(parameters),
-      "variables": _toJson(variables),
+      "parameters": json_helper.toJson(parameters),
+      "variables": json_helper.toJson(variables),
     };
   }
 
   bool get isVariableSQL => sqlID.startsWith('%') && sqlID.endsWith('%');
 
+  @override
+  List<String> get requiredVariables => <String>{
+        ...variables.keys,
+        ...?where?.requiredVariables,
+        ...WithVariables.extractVariables(parameters),
+      }.toList();
+
   Future<void> resolveVariables(
-      DB db, Future<Object?> Function(String name) variableResolver,
-      {Map<String, dynamic>? resolvedVariables}) async {
-    if (variables.isEmpty) return;
-
-    resolvedVariables ??= {};
-
-    var keys = variables.keys.toList();
-
-    for (var key in keys) {
-      var value = variables[key] ?? resolvedVariables[key];
-      value ??= await variableResolver(key);
-
-      variables[key] ??= value;
-      resolvedVariables[key] ??= value;
-    }
-  }
-
-  static final RegExp _regexpVariable = RegExp(r'(%\w+%|#[^:#]+:[^:#]+#)');
-
-  static bool isVariableValue(Object? value) =>
-      (value is String && _regexpVariable.hasMatch(value)) ||
-      (value is List && value.any(isVariableValue));
+          DB db, Future<Object?> Function(String name) variableResolver,
+          {Map<String, dynamic>? resolvedVariables}) =>
+      WithVariables.resolveVariables(requiredVariables, variableResolver,
+          variables: variables, resolvedVariables: resolvedVariables);
 
   static Object? resolveVariableValue(
       Object value, Map<String, dynamic>? variables, List<SQL>? executedSqls) {
     if (value is List) {
       return value.map((e) {
-        if (isVariableValue(e)) {
+        if (WithVariables.isVariableValue(e)) {
           return resolveVariableValue(e, variables, executedSqls);
         } else {
           return e;
@@ -189,7 +179,7 @@ class SQL {
         return v;
       }
     } else {
-      var v = s.replaceAllMapped(_regexpVariable, (m) {
+      var v = WithVariables.replaceVariables(s, (m) {
         var variable = m.group(1)!;
         var val = resolveVariableValue(variable, variables, executedSqls);
         return val?.toString() ?? 'null';
@@ -203,8 +193,9 @@ class SQL {
   Map<String, dynamic> resolveParameters(List<SQL> executedSqls) {
     var parameters2 = Map<String, dynamic>.from(parameters);
 
-    var variableEntries =
-        parameters.entries.where((e) => isVariableValue(e.value)).toList();
+    var variableEntries = parameters.entries
+        .where((e) => WithVariables.isVariableValue(e.value))
+        .toList();
     if (variableEntries.isEmpty) return parameters2;
 
     for (var e in variableEntries) {
@@ -213,39 +204,6 @@ class SQL {
     }
 
     return parameters2;
-  }
-
-  static final sqlDateTimeFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
-
-  static DateTime parseDateTime(String s, {bool utc = true}) {
-    try {
-      return SQL.sqlDateTimeFormat.parse(s.trim(), utc);
-    } catch (_) {
-      _initializeDateFormatting();
-      return SQL.sqlDateTimeFormat.parse(s.trim(), utc);
-    }
-  }
-
-  static String formatDateTime(DateTime d, {bool utc = true}) {
-    if (utc) {
-      d = d.toUtc();
-    }
-
-    try {
-      return SQL.sqlDateTimeFormat.format(d);
-    } catch (_) {
-      _initializeDateFormatting();
-      return SQL.sqlDateTimeFormat.format(d);
-    }
-  }
-
-  static bool _initializeDateFormattingCall = false;
-
-  static void _initializeDateFormatting() {
-    if (_initializeDateFormattingCall) return;
-    _initializeDateFormattingCall = true;
-
-    initializeDateFormatting('en');
   }
 
   String resolveValueAsSQL(Object? value, {required SQLDialect dialect}) {
@@ -259,7 +217,7 @@ class SQL {
     var valueSQL = switch (value) {
       num() => '$value',
       String() => "'$value'",
-      DateTime() => "'${formatDateTime(value)}'",
+      DateTime() => "'${json_helper.formatDateTime(value)}'",
       List() => value.first.toString(),
       _ => value.toString(),
     };
@@ -407,7 +365,7 @@ class SQL {
       var n = parseInt(valSQL);
       if (n != null) return n;
 
-      if (SQL.isVariableValue(valSQL)) {
+      if (WithVariables.isVariableValue(valSQL)) {
         valSQL = SQL.resolveVariableValue(valSQL, variables, executedSqls);
       }
 
@@ -435,13 +393,28 @@ class SQL {
     }
   }
 
+  String get info {
+    return [
+      'type: ${type.name}',
+      'table: $table',
+      if (where != null) 'where: $where',
+      if (parameters.isNotEmpty) 'parameters: $parameters',
+      if (variables.isNotEmpty) 'variables: $variables',
+      'returnLastID: $returnLastID',
+      if (orderBy != null) 'orderBy: $orderBy',
+      if (lastID != null) 'lastID: $lastID',
+      'executed: $executed',
+      if (results != null) '$results',
+    ].join(', ');
+  }
+
   @override
   String toString() {
-    return 'SQL{sqlID: $sqlID, type: ${type.name}, table: $table, where: $where, parameters: $parameters, variables: $variables, returnLastID: $returnLastID, orderBy: $orderBy, lastID: $lastID}';
+    return 'SQL[$sqlID]{$info}${executedSQL != null ? '<$executedSQL>' : ''}';
   }
 }
 
-abstract class SQLCondition {
+abstract class SQLCondition implements WithVariables {
   static SQLCondition? fromJson(dynamic json) {
     if (json == null) {
       return null;
@@ -455,6 +428,9 @@ abstract class SQLCondition {
   }
 
   SQLCondition();
+
+  @override
+  List<String> get requiredVariables;
 
   dynamic toJson();
 
@@ -473,6 +449,10 @@ class SQLConditionGroup extends SQLCondition {
   SQLConditionGroup.and(this.conditions) : or = false;
 
   SQLConditionGroup.or(this.conditions) : or = true;
+
+  @override
+  List<String> get requiredVariables =>
+      conditions.expand((c) => c.requiredVariables).toList();
 
   factory SQLConditionGroup.fromJson(Map<String, dynamic> json) =>
       SQLConditionGroup(
@@ -526,6 +506,9 @@ class SQLConditionValue extends SQLCondition {
 
   SQLConditionValue(this.field, this.op, this.value);
 
+  @override
+  List<String> get requiredVariables => WithVariables.extractVariables(value);
+
   factory SQLConditionValue.fromJson(List json) => SQLConditionValue(
         json[0],
         json[1],
@@ -533,7 +516,7 @@ class SQLConditionValue extends SQLCondition {
       );
 
   @override
-  List toJson() => [field, op, _toJson(value)];
+  List toJson() => [field, op, json_helper.toJson(value)];
 
   @override
   String build(
@@ -544,7 +527,7 @@ class SQLConditionValue extends SQLCondition {
 
     final q = dialect.q;
 
-    if (value != null && SQL.isVariableValue(value)) {
+    if (value != null && WithVariables.isVariableValue(value)) {
       value = SQL.resolveVariableValue(value, variables, executedSqls);
     }
 
@@ -572,100 +555,6 @@ class SQLConditionValue extends SQLCondition {
   }
 }
 
-dynamic _toJson(Object? o) {
-  if (o == null) return null;
-
-  if (o is String || o is num || o is bool) {
-    return o;
-  }
-
-  if (o is DateTime) {
-    var s = SQL.formatDateTime(o);
-    return "data:object;<DateTime>,$s";
-  }
-
-  if (o is Uint8List) {
-    var s = dart_convert.base64.encode(o);
-    return "data:application/octet-stream;base64,$s";
-  }
-
-  if (o is Map) {
-    return o.map((k, v) => MapEntry('$k', _toJson(v)));
-  }
-
-  if (o is List) {
-    return o.map(_toJson).toList();
-  }
-
-  return o;
-}
-
-dynamic _fromJson(Object? o) {
-  if (o == null) return null;
-
-  if (o is num || o is bool) {
-    return o;
-  }
-
-  if (o is Map) {
-    return o.map((k, v) => MapEntry('$k', _fromJson(v)));
-  }
-
-  if (o is List) {
-    return o.map(_fromJson).toList();
-  }
-
-  if (o is String) {
-    if (o.startsWith("data:")) {
-      if (o.startsWith("data:object;<DateTime>,")) {
-        var data = o.substring(23);
-        return SQL.parseDateTime(data);
-      }
-
-      var idx = o.indexOf(';base64,');
-
-      if (idx >= 5) {
-        var base64Data = o.substring(idx + 8);
-        var bytes = dart_convert.base64.decode(base64Data);
-        return bytes;
-      }
-    }
-
-    return o;
-  }
-}
-
-dynamic _fromJsonMap<K, V>(Map m) {
-  var keyMapper = _typeMapper<K>();
-  var valueMapper = _typeMapper<V>();
-
-  return m.map((k, v) {
-    var key = keyMapper(k) as K;
-    var value = valueMapper(v) as V;
-    return MapEntry<K, V>(key, value);
-  });
-}
-
-T? Function(Object? o) _typeMapper<T>() {
-  if (T == String) {
-    return (o) => o?.toString() as T?;
-  }
-
-  if (T == int) {
-    return (o) => parseInt(o) as T?;
-  }
-
-  if (T == double) {
-    return (o) => parseDouble(o) as T?;
-  }
-
-  if (T == num) {
-    return (o) => parseNum(o) as T?;
-  }
-
-  if (T == DateTime) {
-    return (o) => parseDateTime(o) as T?;
-  }
-
-  return (o) => _fromJson(o) as T?;
+extension IterableSQLFromJsonExtension on Iterable {
+  List<SQL> toListOfSQLFromJson() => whereJsonMap().map(SQL.fromJson).toList();
 }

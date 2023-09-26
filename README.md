@@ -32,6 +32,8 @@ Empowered by Dart's multi-platform support, this package simplifies the creation
 
 ## Usage
 
+### `DBCommand` Example
+
 ```dart
 import 'package:sql_commander/sql_commander_postgres.dart';
 //import 'package:sql_commander/sql_commander_mysql.dart';
@@ -128,6 +130,118 @@ void main() async {
   print('SQL chain execution: $ok');
 }
 ```
+
+### `Procedure` Example
+
+You can define a `Procedure` with a dynamic Dart code that can be loaded by the [ApolloVM]
+in any platform supported by Dart. 
+
+```dart
+import 'package:sql_commander/sql_commander_postgres.dart';
+//import 'package:sql_commander/sql_commander_mysql.dart';
+
+void main() async {
+  // Register the `PostgreSQL` connection implementation:
+  DBConnectionPostgres.register();
+  // For MySQL:
+  //DBConnectionMySQL.register();
+  
+  // DBCommand SQLs chain:
+  var sqls = [
+    // Provide the parameter %SYS_USER% in the INSERT below:
+    SQL(
+      '%SYS_USER%',
+      'user',
+      SQLType.SELECT,
+      where: SQLConditionValue('id', '>', 0),
+      returnColumns: {'user_id': 'id'},
+      orderBy: '>user_id',
+      limit: 1,
+    ),
+    // Provide the parameter %TAB_NUMBER% in the INSERT below:
+    SQL(
+      '%TAB_NUMBER%',
+      'tab',
+      SQLType.SELECT,
+
+      where: SQLConditionGroup.and([
+        SQLConditionValue('serie', '=', 'tabs'),
+        SQLConditionGroup.or([
+          SQLConditionValue('status', '=', 'free'),
+          SQLConditionValue('status', '=', null),
+        ])
+      ]),
+      returnColumns: {'num': null},
+      // ORDER BY num DESC:
+      orderBy: '>num',
+      // LIMIT 1:
+      limit: 1,
+    ),
+    // INSERT into table `order` using `%SYS_USER%` and `%TAB_NUMBER%` as parameters:
+    SQL(
+      // The ID of this SQL for references in the command chain: `#order:1001#`
+      '1001',
+      'order',
+      SQLType.INSERT,
+      parameters: {
+        'product': 123,
+        'price': 10.20,
+        'title': 'Water',
+        'user': '%SYS_USER%',
+        'tab': '%TAB_NUMBER%',
+      },
+      // Variables to resolve in this SQL:
+      variables: {'SYS_USER': null, 'TAB_NUMBER': null},
+      returnLastID: true,
+    ),
+    // Another INSERT, using the INSERT above: `#order:1001#`
+    SQL(
+      // The ID of this SQL for references:
+      '1',
+      'order_history',
+      SQLType.INSERT,
+      parameters: {
+        // The order inserted above:
+        'order': '#order:1001#',
+        'date': DateTime.now(),
+      },
+      returnLastID: true,
+    ),
+  ];
+
+  var dbCommand = DBCommand(
+      id: 'cmd_1', 'localhost', 5432, 'root', '123456', 'postgres', '', sqls);
+
+  var procedure = ProcedureDart(
+    name: 'do',
+    dbCommands: [dbCommand],
+    code: r'''
+  
+      int do() {
+        var cmdOK = executeDBCommandByID("cmd_1");
+        
+        if (!cmdOK) {
+          print('** Error executing DBCommand!');
+          return false;
+        }
+        
+        print('DBCommand `cmd_1` executed.');
+        
+        var tabNumber = getSQLResult('%TAB_NUMBER%');
+        print('TAB_NUMBER: tabNumber');
+        
+        return tabNumber ;
+      }
+      
+    ''',
+  );
+
+  var tabNumber = await procedure.execute();
+  print("Procedure result> tabNumber: $tabNumber");
+}
+
+```
+
 ## Features and bugs
 
 Please file feature requests and bugs at the [issue tracker][tracker].
@@ -148,6 +262,15 @@ Your support means the world to us, and it keeps the code caffeinated! ☕✨
 Thanks a million! 🚀😄
 
 [github_sponsors]: https://github.com/sponsors/gmpassos
+
+## See Also
+
+- [ApolloVM]:
+  A portable VM (native, JS/Web, Flutter) that can parse, translate and run multiple languages,
+  like Dart, Java and JavaScript.
+
+
+[ApolloVM]: https://pub.dev/packages/apollovm
 
 ## License
 

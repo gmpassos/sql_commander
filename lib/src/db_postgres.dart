@@ -103,6 +103,8 @@ class DBConnectionPostgres extends DBConnection<PostgreSQLConnection> {
       {List<SQL>? executedSqls}) async {
     var s = sql.build(dialect: dialect, executedSqls: executedSqls);
 
+    sql.executedSQL = s.sql;
+
     switch (sql.type) {
       case SQLType.INSERT:
         {

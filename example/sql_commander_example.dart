@@ -5,9 +5,91 @@ import 'package:sql_commander/sql_commander_postgres.dart';
 // import 'package:sql_commander/sql_commander_mysql.dart';
 //
 
+// Logging functions:
+myLogInfo(m) => print('[INFO] $m');
+
+myLogError(m, [e, s]) => print('[ERROR] $m >> $e\n$s');
+
 void main() async {
+  // Register the `PostgreSQL` connection implementation:
+  DBConnectionPostgres.register();
+  // For MySQL:
+  //DBConnectionMySQL.register();
+
+  await _dbCommandExample();
+
+  await _procedureExample();
+}
+
+Future<void> _dbCommandExample() async {
+  print('[[[ DBCommand Example ]]]');
+
   // DBCommand SQLs chain:
-  var dbCommandSQLs = [
+  var sqls = _buildSQLs();
+
+  // A `DBCommand` as JSON:
+  var json = {
+    "host": 'localhost',
+    "port": 5432,
+    "user": 'root',
+    "pass": '123456',
+    "db": 'dev',
+    "software": 'postgres',
+    "sqls": sqls.map((e) => e.toJson()).toList(),
+  };
+
+  // Load a `DBCommand` from JSON:
+  var dbCommand = DBCommand.fromJson(json)
+    ..logInfo = myLogInfo
+    ..logError = myLogError;
+
+  // Execute the SQL chain:
+  var ok = await dbCommand.execute();
+
+  print('SQL chain execution: $ok');
+}
+
+Future<void> _procedureExample() async {
+  print('[[[ Procedure Example ]]]');
+
+  // DBCommand SQLs chain:
+  var sqls = _buildSQLs();
+
+  var dbCommand = DBCommand(
+      id: 'cmd_1', 'localhost', 5432, 'root', '123456', 'postgres', '', sqls);
+
+  var procedure = ProcedureDart(
+    name: 'do',
+    dbCommands: [dbCommand],
+    code: r'''
+  
+      int do() {
+        var cmdOK = executeDBCommandByID("cmd_1");
+        
+        if (!cmdOK) {
+          print('** Error executing DBCommand!');
+          return false;
+        }
+        
+        print('DBCommand `cmd_1` executed.');
+        
+        var tabNumber = getSQLResult('%TAB_NUMBER%');
+        print('TAB_NUMBER: tabNumber');
+        
+        return tabNumber ;
+      }
+      
+    ''',
+  )
+    ..logInfo = myLogInfo
+    ..logError = myLogError;
+
+  var tabNumber = await procedure.execute();
+  print("Procedure result> tabNumber: $tabNumber");
+}
+
+List<SQL> _buildSQLs() {
+  return [
     // Provide the parameter %SYS_USER% in the INSERT below:
     SQL(
       '%SYS_USER%',
@@ -68,31 +150,4 @@ void main() async {
       returnLastID: true,
     ),
   ];
-
-  // A `DBCommand` as JSON:
-  var commandJSON = {
-    "host": 'localhost',
-    "port": 5432,
-    "user": 'root',
-    "pass": 'abc123',
-    "db": 'dev',
-    "software": 'postgres',
-    "sqls": dbCommandSQLs.map((e) => e.toJson()).toList(),
-  };
-
-  // Load a `DBCommand` from JSON:
-  var dbCommand = DBCommand.fromJson(commandJSON);
-
-  // Register the `PostgreSQL` connection implementation:
-  DBConnectionPostgres.register();
-  // For MySQL:
-  //DBConnectionMySQL.register();
-
-  // Execute the SQL chain:
-  var ok = await dbCommand.execute(
-    logInfo: (m) => print('[INFO] $m'),
-    logError: (m, [e, s]) => print('[ERROR] $m >> $e\n$s'),
-  );
-
-  print('SQL chain execution: $ok');
 }

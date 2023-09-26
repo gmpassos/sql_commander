@@ -135,16 +135,33 @@ void main() {
       var loggedInfos = [];
       var loggedErrors = [];
 
+      myLogInfo(m) => loggedInfos.add(m);
+      myLogError(m, [e, s]) => loggedErrors.add([m, e, s]);
+
+      dbCommand.logInfo = myLogInfo;
+      dbCommand.logError = myLogError;
+
       var connectionProvider = DBSingleConnectionProvider(myDBConnection);
       var db = DB(connectionProvider);
 
-      var sqlOK = await dbCommand.execute(
-          prepared: db,
-          logInfo: (m) => loggedInfos.add(m),
-          logError: (m, [e, s]) => loggedErrors.add([m, e, s]));
+      var sqlOK = await dbCommand.execute(prepared: db);
 
       expect(sqlOK, isTrue);
-      expect(loggedInfos, isEmpty);
+
+      expect(
+          loggedInfos,
+          equals([
+            'Started transaction',
+            'Executed SQL for variable `SYS_USER`: SQL[%SYS_USER%]{type: SELECT, table: user, where: SQLConditionValue{id > 0}, returnLastID: false, orderBy: >user_id, executed: true, [{id: u10}]}<SELECT `user_id` as `id` FROM `user` WHERE `id` > 0 ORDER BY `user_id` DESC LIMIT 1>',
+            'Executed SQL for variable `TAB_NUMBER`: SQL[%TAB_NUMBER%]{type: SELECT, table: tab, where: SQLConditionGroup{or: false, conditions: [SQLConditionValue{serie = tabs}, SQLConditionGroup{or: true, conditions: [SQLConditionValue{status = free}, SQLConditionValue{status = null}]}]}, returnLastID: false, orderBy: >num, executed: true, [{id: 301}]}<SELECT `num` FROM `tab` WHERE ( `serie` = \'tabs\' AND ( `status` = \'free\' OR `status` IS NULL ) ) ORDER BY `num` DESC LIMIT 1>',
+            'SQL executed: SQL[11]{type: INSERT, table: order, parameters: {product: 123, price: 10.2, title: Water, user: %SYS_USER%, tab: %TAB_NUMBER%}, variables: {SYS_USER: u10, TAB_NUMBER: 301}, returnLastID: true, lastID: 101, executed: true, []}<INSERT INTO `order` (`product` , `price` , `title` , `user` , `tab`) VALUES (123 , 10.2 , \'Water\' , \'u10\' , 301)>',
+            'SQL executed: SQL[12]{type: UPDATE, table: product, where: SQLConditionGroup{or: false, conditions: [SQLConditionValue{id = 123}, SQLConditionValue{type != x}]}, parameters: {last_date: 2020-10-11 00:00:00.000Z, count: [count + 1]}, returnLastID: false, executed: true, []}<UPDATE `product` SET `last_date` = \'2020-10-11 00:00:00\' , `count` = count + 1 WHERE ( `id` = 123 AND `type` != \'x\' )>',
+            'SQL executed: SQL[13]{type: INSERT, table: order_ref, parameters: {order: #order:11#, next_order: [#order:11# + 10], ref: 1002}, returnLastID: true, lastID: 111, executed: true, []}<INSERT INTO `order_ref` (`order` , `next_order` , `ref`) VALUES (101 , 101 + 10 , 1002)>',
+            'SQL executed: SQL[14]{type: UPDATE, table: order_ref, where: SQLConditionValue{id = #order_ref:13#}, parameters: {last_date: 2020-10-11 01:02:03.000Z, qr: [1, 2, 3, 4]}, returnLastID: false, executed: true, []}<UPDATE `order_ref` SET `last_date` = \'2020-10-11 01:02:03\' , `qr` = \'\\x01020304\' WHERE `id` = 111>',
+            'SQL executed: SQL[15]{type: DELETE, table: tab_use, where: SQLConditionValue{num = %TAB_NUMBER%}, parameters: {last_date: 2020-10-11 01:02:03.000Z}, variables: {TAB_NUMBER: 301}, returnLastID: false, executed: true, []}<DELETE FROM `tab_use` WHERE `num` = 301>',
+            'Commit transaction: OK'
+          ]));
+
       expect(loggedErrors, isEmpty);
 
       expect(myDBConnection.insertCount, equals(101));
@@ -258,6 +275,8 @@ class _MyDBConnection extends DBConnection<int> {
       SQL sql,
       {List<SQL>? executedSqls}) async {
     var s = sql.build(dialect: dialect, executedSqls: executedSqls);
+
+    sql.executedSQL = s.sql;
 
     List<Map<String, dynamic>>? results;
     Object? lastID;

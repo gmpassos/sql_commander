@@ -1,3 +1,15 @@
+## 1.0.6
+
+- New `CommandLog` and `WithVariables`.
+- `Command` extends `CommandLog`.
+- `DBCommand`:
+  - Added field `properties`.
+- New `DBCommandSet`.
+- `SQL`:
+  - Added field `executedSQL`, with the actual executed SQL `String`.
+
+- apollovm: ^0.0.38
+
 ## 1.0.5
 
 - `SQL`:
