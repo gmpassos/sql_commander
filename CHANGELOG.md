@@ -1,3 +1,7 @@
+## 1.0.7
+
+- apollovm: ^0.0.42
+
 ## 1.0.6
 
 - New `CommandLog` and `WithVariables`.

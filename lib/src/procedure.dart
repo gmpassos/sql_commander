@@ -145,8 +145,8 @@ class ProcedureApolloVM extends Procedure {
   Future<ApolloVM> _loadVM() async {
     var vm = ApolloVM();
 
-    var codeUnit = CodeUnit(
-        language, code, 'sql_commander:ProcedureApolloVM/$language/$name');
+    var codeUnit = SourceCodeUnit(language, code,
+        id: 'sql_commander:ProcedureApolloVM/$language/$name');
 
     var loadOK = await vm.loadCodeUnit(codeUnit);
     if (!loadOK) {
@@ -191,7 +191,7 @@ class ProcedureApolloVM extends Procedure {
     return value as R;
   }
 
-  ApolloLanguageRunner createRunner(ApolloVM vm) {
+  ApolloRunner createRunner(ApolloVM vm) {
     var runner = vm.createRunner(language)!;
 
     runner.externalPrintFunction = _printFunctionMapper;
@@ -222,7 +222,7 @@ class ProcedureApolloVM extends Procedure {
     printFunction(s);
   }
 
-  void mapExternalFunctions(ApolloLanguageRunner runner,
+  void mapExternalFunctions(ApolloRunner runner,
       ApolloExternalFunctionMapper externalFunctionMapper) {
     externalFunctionMapper.mapExternalFunction1(ASTTypeDynamic.instance,
         'getProperty', ASTTypeString.instance, 'key', getProperty);
