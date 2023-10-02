@@ -1,6 +1,6 @@
 name: sql_commander
 description: A SQL command chain handler and executor that is database-agnostic, with built-in support for MySQL and PostgreSQL.
-version: 1.0.7
+version: 1.0.8
 repository: https://github.com/gmpassos/sql_commander
 
 environment:
@@ -8,7 +8,7 @@ environment:
 
 dependencies:
   swiss_knife: ^3.1.5
-  apollovm: ^0.0.43
+  apollovm: ^0.0.45
   collection: ^1.18.0
   intl: ^0.18.1
   logging: ^1.2.0
