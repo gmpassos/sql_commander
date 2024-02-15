@@ -1,3 +1,16 @@
+## 1.1.0
+
+- sdk: '>=3.3.0 <4.0.0'
+- swiss_knife: ^3.1.6
+- apollovm: ^0.0.50
+- intl: ^0.19.0
+- postgres: ^2.6.3
+
+- lints: ^3.0.0
+- dependency_validator: ^3.2.3
+- test: ^1.25.2
+- coverage: ^1.7.2
+
 ## 1.0.9
 
 - apollovm: ^0.0.49
